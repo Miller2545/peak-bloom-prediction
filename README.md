@@ -1,7 +1,7 @@
 # Cherry Blossom Peak Bloom Prediction
 ___
 
-This is the official template repository for George Mason’s Department of Statistics cherry blossom peak bloom prediction competition.
+The project skeleton was forked from the official George Mason University Cherry Blossom Prediction repository for creation of a competition entry.
 
 
 ## Abstract
