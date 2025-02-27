@@ -17,10 +17,12 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE, error = FALSE,
                       out.width = '80%')
 
 library(tidyverse)
+library(lubridate)
 library(rvest)
 library(dplyr)
 library(ggplot2)
 library(factoextra)
+library(randomForest)
 ```
 
 Starting off I want to bring in data I downloaded from NOAA (When it was actually cooperating). This data was obtained from the historical recordings from the Reagan Airport station. These observations are the minimum and maximum temperatures in fahrenheit that were then converted to celsius and to avoid NA values the average temperature was gotten by adding and dividing the two values by two. Then the growing degree days were calculated and the cumulative sum was taken for the accumulated heating units. Months from January to May were only selected to trim the data set down a bit and eventually only 120 days into the year were kept due to the latest historical recording available is day 108.
@@ -209,22 +211,53 @@ wide_train_y <- wide_train$BLOOM_DOY
 wide_test <- wide[69:83,]
 wide_test_x <- wide_test %>%
   select(-BLOOM_DOY)
+
 wide_test_y <- wide_test$BLOOM_DOY
 
-
 scale_train_x <- as.data.frame(scale(wide_train_x))
-scale_test_x <- as.data.frame(scale(wide_test_x, center = attr(scale_train, "scaled:center"), scale = attr(scale_train, "scaled:scale")))
 
 pca <- prcomp(scale_train_x, center = T, scale. = T)
-fviz_eig(pca)
+
+scale_test_x <- as.data.frame(scale(wide_test_x, center = pca$center, scale = pca$scale))
 
 wide_test_x_proj <- as.data.frame(predict(pca, newdata = wide_test_x)) %>%
   select(
-    PC1:PC5
+    PC1:PC3
   )
 
-# TODO: Project testing data into training space
+wide_train <- wide_train_x
+wide_train$y <- wide_train_y
+
+pca_train <- as.data.frame(pca$x[,1:3])
+pca_train$y <- wide_train_y
+
+fviz_eig(pca)
 ```
+
+### Model Training  
+  
+```{r}
+set.seed(13)
+
+rf_mtry <- tuneRF(wide_train_x, wide_train_y, stepFactor = 1.5, improve = 0.01, ntreeTry = 10000)
+rf_pca_mtry <- tuneRF(pca_train[,-4], pca_train$y, stepFactor = 1.5, improve = 0.01, ntreeTry = 10000)
+
+rf <- randomForest(x = wide_train_x, y = wide_train_y, mtry = 13, ntree = 10000)
+rf_pca <- randomForest(x = pca_train[,-4], y = pca_train$y, mtry = 1, ntree = 10000)
+
+rf_pred <- predict(rf, newdata = wide_test_x)
+rf_pca_pred <- predict(rf_pca, newdata = wide_test_x_proj)
+
+mae_pred <- sum(abs((round(rf_pred, 0) - wide_test_y)))
+mae_pred_pca <- sum(abs((round(rf_pca_pred, 0) - wide_test_y)))
+```
+
+### Predictions
+
+```{r}
+
+```
+
 
 
 
