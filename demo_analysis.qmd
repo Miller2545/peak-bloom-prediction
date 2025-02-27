@@ -385,13 +385,40 @@ newyork_test <- prep_test(newyork)
 vancouver_test <- prep_test(vancouver)
                         
 # Predictions
-washington_pred <- round(predict(washington_model, newdata = washington_test), 0)
-kyoto_pred <- round(predict(kyoto_model, newdata = kyoto_test), 0)
-liestal_pred <- round(predict(liestal_model, newdata = liestal_test), 0)
-newyork_pred <- round(predict(newyork_model, newdata = newyork_test), 0)
-vancouver_pred <- round(predict(vancouver_model, newdata = vancouver_test), 0)
+washington_pred <- predict(washington_model, newdata = washington_test, predict.all = T)
+kyoto_pred <- predict(kyoto_model, newdata = kyoto_test, predict.all = T)
+liestal_pred <- predict(liestal_model, newdata = liestal_test, predict.all = T)
+newyork_pred <- predict(newyork_model, newdata = newyork_test, predict.all = T)
+vancouver_pred <- predict(vancouver_model, newdata = vancouver_test, predict.all = T)
 
-# Prediction Intervals
+washington_final <- round(washington_pred$aggregate, 0)
+washington_lower <- apply(washington_pred$individual, 1, quantile, probs = 0.05)
+washington_upper <- round(apply(washington_pred$individual, 1, quantile, probs = 0.95), 0)
+
+kyoto_final <- round(kyoto_pred$aggregate, 0)
+kyoto_lower <- apply(kyoto_pred$individual, 1, quantile, probs = 0.05)
+kyoto_upper <- round(apply(kyoto_pred$individual, 1, quantile, probs = 0.95), 0)
+
+liestal_final <- round(liestal_pred$aggregate, 0)
+liestal_lower <- apply(liestal_pred$individual, 1, quantile, probs = 0.05)
+liestal_upper <- round(apply(liestal_pred$individual, 1, quantile, probs = 0.95), 0)
+
+newyork_final <- round(newyork_pred$aggregate, 0)
+newyork_lower <- apply(newyork_pred$individual, 1, quantile, probs = 0.05)
+newyork_upper <- round(apply(newyork_pred$individual, 1, quantile, probs = 0.95), 0)
+
+vancouver_final <- round(vancouver_pred$aggregate, 0)
+vancouver_lower <- apply(vancouver_pred$individual, 1, quantile, probs = 0.05)
+vancouver_upper <- round(apply(vancouver_pred$individual, 1, quantile, probs = 0.95), 0)
+
+predictions <- data.frame(
+  Location = c("Washington", "Kyoto", "Liestal", "New York", "Vancouver"),
+  Prediction = c(washington_final, kyoto_final, liestal_final, newyork_final, vancouver_final),
+  Lower = c(washington_lower, kyoto_lower, liestal_lower, newyork_lower, vancouver_lower),
+  Upper = c(washington_upper, kyoto_upper, liestal_upper, newyork_upper, vancouver_upper)
+)
+
+write.csv(predictions, "cherry-predictions.csv", row.names = F)
 ```
 
 
