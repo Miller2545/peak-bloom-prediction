@@ -196,12 +196,6 @@ vancouver <-
   
 ## Modelling
 
-Now getting into the actual modelling. My initial idea is naturally to use Random Forest, but along with Random Forest I will be attempting other types of models, with the limit being we have shrunk our data set in terms of observations but have a large number of columns. Dimension reduction will be performed to further reduce the columns to hopefully arrive at a model that performs best above the others.
-
-### Dimension Reduction
-
-In order to control the number of columns we will have, I will be performing Principal Component Analysis to bring our 121 features down into a more manageable level.
-
 ```{r}
 wide_train <- wide[1:68,]
 wide_train_x <- wide_train %>%
@@ -214,24 +208,8 @@ wide_test_x <- wide_test %>%
 
 wide_test_y <- wide_test$BLOOM_DOY
 
-scale_train_x <- as.data.frame(scale(wide_train_x))
-
-pca <- prcomp(scale_train_x, center = T, scale. = T)
-
-scale_test_x <- as.data.frame(scale(wide_test_x, center = pca$center, scale = pca$scale))
-
-wide_test_x_proj <- as.data.frame(predict(pca, newdata = wide_test_x)) %>%
-  select(
-    PC1:PC3
-  )
-
 wide_train <- wide_train_x
 wide_train$y <- wide_train_y
-
-pca_train <- as.data.frame(pca$x[,1:3])
-pca_train$y <- wide_train_y
-
-fviz_eig(pca)
 ```
 
 ### Model Training  
@@ -240,16 +218,17 @@ fviz_eig(pca)
 set.seed(13)
 
 rf_mtry <- tuneRF(wide_train_x, wide_train_y, stepFactor = 1.5, improve = 0.01, ntreeTry = 10000)
-rf_pca_mtry <- tuneRF(pca_train[,-4], pca_train$y, stepFactor = 1.5, improve = 0.01, ntreeTry = 10000)
 
-rf <- randomForest(x = wide_train_x, y = wide_train_y, mtry = 13, ntree = 10000)
-rf_pca <- randomForest(x = pca_train[,-4], y = pca_train$y, mtry = 1, ntree = 10000)
+rf <- randomForest(x = wide_train_x, y = wide_train_y, mtry = rf_mtry[which(rf_mtry[,2] == min(rf_mtry[,2]))], ntree = 10000)
 
 rf_pred <- predict(rf, newdata = wide_test_x)
-rf_pca_pred <- predict(rf_pca, newdata = wide_test_x_proj)
 
-mae_pred <- sum(abs((round(rf_pred, 0) - wide_test_y)))
-mae_pred_pca <- sum(abs((round(rf_pca_pred, 0) - wide_test_y)))
+mae_pred <- sum(abs((round(rf_pred, 0) - wide_test_y))) / length(wide_test_y)
+```
+
+### Helper Functions
+
+```{r}
 
 prep_data <- function(data, blooms){
   
