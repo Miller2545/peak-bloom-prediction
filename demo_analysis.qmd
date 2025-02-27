@@ -250,12 +250,148 @@ rf_pca_pred <- predict(rf_pca, newdata = wide_test_x_proj)
 
 mae_pred <- sum(abs((round(rf_pred, 0) - wide_test_y)))
 mae_pred_pca <- sum(abs((round(rf_pca_pred, 0) - wide_test_y)))
+
+prep_data <- function(data, blooms){
+  
+  copy <- data
+  
+  bloom <- read.csv(blooms) %>%
+    mutate(
+      YEAR = year(bloom_date)
+    ) %>%
+    filter(
+      YEAR %in% c(1942:2024)
+    ) %>%
+    mutate(
+      DATE = as.Date(bloom_date, format = "%Y-%m-%d")
+    ) %>%
+    select(c(DATE, bloom_doy))
+  
+  bloom_join <- left_join(copy, bloom, by = join_by(DATE)) %>%
+    mutate(
+      BLOOM = ifelse(is.na(bloom_doy), 0, 1),
+    ) %>%
+    select(
+      -c(bloom_doy, TAVG, TMAX, TMIN)
+    ) %>%
+    group_by(YEAR) %>%
+    mutate(
+      GROWING_UNITS = cumsum(GDD)
+    ) %>%
+    filter(
+      DOY %in% c(1:120)
+    ) %>%
+    ungroup(YEAR) %>%
+    filter(
+      YEAR!=2025
+    )
+  
+  bloom_wide <- bloom_join %>%
+    select(YEAR, DOY, GROWING_UNITS) %>%
+    pivot_wider(
+    names_from = DOY,
+    values_from = GROWING_UNITS,
+    names_prefix = "DOY_"
+    ) %>%
+    select(
+      -YEAR
+    )
+  
+  bloom_doy <- left_join(bloom_join, bloom, by = join_by(DATE)) %>%
+    filter(!is.na(bloom_doy)) %>%
+    select(bloom_doy, YEAR)
+  
+  bloom_wide$bloom_doy <- bloom_doy$bloom_doy
+  
+  return(bloom_wide)
+}
+
+train_model <- function(wide){
+  set.seed(13)
+  
+  wide_train <- wide[1:68,]
+  wide_train_x <- wide_train %>%
+    select(-bloom_doy)
+  wide_train_y <- wide_train$bloom_doy
+
+  wide_test <- wide[69:83,]
+  wide_test_x <- wide_test %>%
+    select(-bloom_doy)
+
+  wide_test_y <- wide_test$bloom_doy
+  
+  rf_mtry <- tuneRF(wide_train_x, wide_train_y, stepFactor = 1.5, improve = 0.01, ntreeTry = 10000)
+  
+  rf <- randomForest(x = wide_train_x, y = wide_train_y, mtry = rf_mtry[which(rf_mtry[,2] == min(rf_mtry[,2]))], ntree = 10000)
+  
+  return(rf)
+}
+
+prep_test <- function(data){
+  copy <- data %>%
+  mutate(
+    DATE = as.Date(date, format = "%m/%d/%Y"),
+    YEAR = year(DATE),
+    MONTH = month(DATE),
+    TMAX = ((tmax-32) * (5/9)),
+    TMIN = ((tmin-32) * (5/9)),
+    TAVG = (tmax+tmin) / 2,
+    GDD = ifelse(TAVG > 0, TAVG^2, 0),
+    GROWING_UNITS = cumsum(GDD),
+    DOY = row_number() 
+  ) %>%
+    select(-c(tmax, tmin, date, year)) %>%
+    select(YEAR, DOY, GROWING_UNITS) %>%
+    pivot_wider(
+    names_from = DOY,
+    values_from = GROWING_UNITS,
+    names_prefix = "DOY_"
+    ) %>%
+    select(
+      -YEAR
+    )
+}
 ```
 
 ### Predictions
 
 ```{r}
+# Training Data for each individual model
+washington_prep <- prep_data(dc, "data\\washingtondc.csv")
 
+kyoto_sub <- dc %>%
+  filter(YEAR != 1945)
+
+liestal_sub <- dc %>%
+  filter(YEAR != 1986)
+
+kyoto_prep <- prep_data(kyoto_sub, "data\\kyoto.csv")
+liestal_prep <- prep_data(liestal_sub, "data\\liestal.csv")
+newyork_prep <- prep_data(dc, "data\\washingtondc.csv")
+vancouver_prep <- prep_data(dc, "data\\washingtondc.csv")
+
+# Individual Models Training
+washington_model <- train_model(washington_prep)
+kyoto_model <- train_model(kyoto_prep)
+liestal_model <- train_model(liestal_prep)
+newyork_model <- train_model(newyork_prep)
+vancouver_model <- train_model(vancouver_prep)
+
+# Prepping the Testing Data
+washington_test <- prep_test(washington)
+kyoto_test <- prep_test(kyoto)
+liestal_test <- prep_test(liestal)
+newyork_test <- prep_test(newyork)
+vancouver_test <- prep_test(vancouver)
+                        
+# Predictions
+washington_pred <- round(predict(washington_model, newdata = washington_test), 0)
+kyoto_pred <- round(predict(kyoto_model, newdata = kyoto_test), 0)
+liestal_pred <- round(predict(liestal_model, newdata = liestal_test), 0)
+newyork_pred <- round(predict(newyork_model, newdata = newyork_test), 0)
+vancouver_pred <- round(predict(vancouver_model, newdata = vancouver_test), 0)
+
+# Prediction Intervals
 ```
 
 
